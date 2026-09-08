@@ -13,7 +13,7 @@ class RuijieApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Ruijie Reyee Manager',
+      title: 'Ruijie Reyee Dashboard',
       theme: ThemeData(
         primarySwatch: Colors.blue,
         useMaterial3: true,
@@ -36,7 +36,7 @@ class _DashBoardScreenState extends State<DashBoardScreen> {
 
   List<dynamic> devices = [];
   bool isLoading = false;
-  String debugLog = "";
+  String statusMessage = "";
 
   @override
   void initState() {
@@ -47,92 +47,78 @@ class _DashBoardScreenState extends State<DashBoardScreen> {
   Future<void> fetchDevices() async {
     setState(() {
       isLoading = true;
-      debugLog = "=== Full Multi-Server Diagnostic ===\n\n";
+      statusMessage = "Ruijie Cloud Server သို့ ချိတ်ဆက်နေပါသည်။...";
     });
 
-    // Ruijie Cloud Server Domains
     final List<String> baseUrls = [
       "https://cloud-as.ruijienetworks.com",
       "https://cloud.ruijienetworks.com",
       "https://cloud-eu.ruijienetworks.com",
     ];
 
-    // API Path Variations
-    final List<String> authEndpoints = [
-      "/service/api/v1/auth/token",
-      "/service/api/v1/token",
-      "/open/api/v1/auth/token",
-      "/api/v1/auth/token",
-      "/open/v1/auth/token",
-      "/service/api/v2/auth/token",
-    ];
+    String? accessToken;
+    String workingDomain = "";
 
-    String workingBaseUrl = "";
-    String workingAuthPath = "";
-    String token = "";
-
+    // 1. Ruijie Official Access Token Endpoint
     for (String domain in baseUrls) {
-      for (String path in authEndpoints) {
-        final url = "$domain$path";
-        try {
-          final res = await http.post(
-            Uri.parse(url),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'appId': appId, 'appSecret': appSecret}),
-          );
+      try {
+        final tokenUrl = "$domain/service/api/oauth20/client/access_token";
+        final response = await http.post(
+          Uri.parse(tokenUrl),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'appid': appId,
+            'secret': appSecret
+          }),
+        );
 
-          if (res.statusCode == 200) {
-            final data = jsonDecode(res.body);
-            token = data['accessToken'] ?? data['data']?['accessToken'] ?? '';
-            if (token.isNotEmpty) {
-              workingBaseUrl = domain;
-              workingAuthPath = path;
-              debugLog += "SUCCESS: Found -> $domain$path\n";
-              break;
-            } else {
-              debugLog += "200 OK (No Token): $url\n";
-            }
-          } else {
-            debugLog += "FAIL [Status ${res.statusCode}]: $domain$path\n";
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          if (data['accessToken'] != null && data['accessToken'].toString().isNotEmpty) {
+            accessToken = data['accessToken'];
+            workingDomain = domain;
+            break;
+          } else if (data['code'] != null && data['code'] != 0) {
+            statusMessage = "Ruijie API Error: ${data['msg']} (Code: ${data['code']})";
           }
-        } catch (e) {
-          debugLog += "ERR: $domain$path\n";
+        } else {
+          statusMessage = "HTTP Error Status: ${response.statusCode}";
         }
+      } catch (e) {
+        statusMessage = "Connection Error: $e";
       }
-      if (token.isNotEmpty) break;
     }
 
-    if (token.isEmpty) {
+    if (accessToken == null) {
       setState(() {
-        debugLog += "\n⚠️ Server အားလုံးနှင့် API Path များ စစ်ဆေးခဲ့ပြီး မှန်ကန်သော Endpoint ရှာမတွေ့ပါ။";
         isLoading = false;
       });
       return;
     }
 
-    // Token ရပါက Device List ခေါ်ယူခြင်း
-    final String devPath = workingAuthPath.replaceAll("auth/token", "device/list").replaceAll("token", "device/list");
+    // 2. Fetch Devices List
     try {
-      final devRes = await http.get(
-        Uri.parse("$workingBaseUrl$devPath"),
-        headers: {'AccessToken': token},
-      );
+      final deviceUrl = "$workingDomain/service/api/maint/devices?access_token=$accessToken";
+      final devResponse = await http.get(Uri.parse(deviceUrl));
 
-      if (devRes.statusCode == 200) {
-        final devData = jsonDecode(devRes.body);
+      if (devResponse.statusCode == 200) {
+        final devData = jsonDecode(devResponse.body);
         setState(() {
-          devices = devData['list'] ?? devData['data'] ?? [];
+          devices = devData['data'] ?? devData['list'] ?? devData['devices'] ?? [];
           isLoading = false;
+          if (devices.isEmpty) {
+            statusMessage = "Device များ မတွေ့ရှိပါ။ (အကောင့်ထဲတွင် Device ထည့်ထားခြင်း မရှိပါ)";
+          }
         });
       } else {
         setState(() {
-          debugLog += "\nDevice List Status: ${devRes.statusCode} - ${devRes.body}";
+          statusMessage = "Device List Fetch Failed [Code: ${devResponse.statusCode}]";
           isLoading = false;
         });
       }
     } catch (e) {
       setState(() {
-        debugLog += "\nDevice List Exception: $e";
+        statusMessage = "Error: $e";
         isLoading = false;
       });
     }
@@ -151,30 +137,61 @@ class _DashBoardScreenState extends State<DashBoardScreen> {
         ],
       ),
       body: isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(statusMessage),
+                ],
+              ),
+            )
           : devices.isNotEmpty
               ? ListView.builder(
                   itemCount: devices.length,
                   itemBuilder: (context, index) {
                     final dev = devices[index];
-                    return ListTile(
-                      leading: const Icon(Icons.router),
-                      title: Text(dev['devName'] ?? dev['sn'] ?? 'Unknown Device'),
-                      subtitle: Text(dev['model'] ?? dev['ip'] ?? ''),
+                    return Card(
+                      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      child: ListTile(
+                        leading: Icon(
+                          dev['online'] == true || dev['status'] == 'online'
+                              ? Icons.router
+                              : Icons.router_outlined,
+                          color: dev['online'] == true || dev['status'] == 'online'
+                              ? Colors.green
+                              : Colors.grey,
+                        ),
+                        title: Text(
+                          dev['devName'] ?? dev['deviceName'] ?? dev['sn'] ?? 'Unknown Device',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(
+                          "Model: ${dev['model'] ?? 'N/A'}\nSN: ${dev['sn'] ?? 'N/A'} | IP: ${dev['ip'] ?? 'N/A'}",
+                        ),
+                      ),
                     );
                   },
                 )
-              : Padding(
+              : Center(
                   padding: const EdgeInsets.all(16.0),
-                  child: SingleChildScrollView(
-                    child: Text(
-                      debugLog,
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: debugLog.contains("SUCCESS") ? Colors.green : Colors.red,
-                        fontSize: 12,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.info_outline, size: 48, color: Colors.blue),
+                      const SizedBox(height: 16),
+                      Text(
+                        statusMessage,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 14),
                       ),
-                    ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: fetchDevices,
+                        child: const Text("ပြန်လည် စမ်းသပ်မည်"),
+                      )
+                    ],
                   ),
                 ),
     );
