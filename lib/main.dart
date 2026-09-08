@@ -34,7 +34,6 @@ class DashboardScreen extends StatefulWidget {
 class _DashboardScreenState extends State<DashboardScreen> {
   bool isLoading = false;
 
-  // Real Device Data from Ruijie Cloud Portal
   final Map<String, dynamic> deviceData = {
     'name': 'Wi-Fi Gateway',
     'model': 'EG105GW-X',
@@ -71,14 +70,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         elevation: 0,
         backgroundColor: Colors.white,
         title: Column(
-          crossAxisAlignment: CrossAlignment.start,
+          crossAlignment: CrossAlignment.start,
           children: const [
             Text(
               'Myat Noe Aung',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: Colors.black80,
+                color: Colors.black87,
               ),
             ),
             Text(
@@ -102,23 +101,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
-                  crossAxisAlignment: CrossAlignment.start,
+                  crossAlignment: CrossAlignment.start,
                   children: [
-                    // Overview Category Cards
                     _buildSummaryRow(),
                     const SizedBox(height: 20),
-
                     const Text(
                       'Connected Devices',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Colors.black70,
+                        color: Colors.black87,
                       ),
                     ),
                     const SizedBox(height: 12),
-
-                    // Main Device Card
                     _buildDeviceCard(context),
                   ],
                 ),
@@ -186,9 +181,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          crossAxisAlignment: CrossAlignment.start,
+          crossAlignment: CrossAlignment.start,
           children: [
-            // Header Row: Icon, Name & Status Badge
             Row(
               children: [
                 Container(
@@ -202,10 +196,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
-                    crossAxisAlignment: CrossAlignment.start,
+                    crossAlignment: CrossAlignment.start,
                     children: [
                       Text(
-                        deviceData['name'],
+                        deviceData['name'].toString(),
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
@@ -238,7 +232,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                       const SizedBox(width: 6),
                       Text(
-                        deviceData['status'],
+                        deviceData['status'].toString(),
                         style: TextStyle(
                           fontSize: 12,
                           color: Colors.green.shade700,
@@ -250,26 +244,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ],
             ),
-
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
               child: Divider(height: 1, color: Color(0xFFEEEEEE)),
             ),
-
-            // Device Info Grid
-            _buildInfoRow(Icons.pin, 'Serial Number (SN)', deviceData['sn']),
+            _buildInfoRow(Icons.pin, 'Serial Number (SN)', deviceData['sn'].toString()),
             const SizedBox(height: 8),
-            _buildInfoRow(Icons.lan, 'Management IP', deviceData['mgmtIp']),
+            _buildInfoRow(Icons.lan, 'Management IP', deviceData['mgmtIp'].toString()),
             const SizedBox(height: 8),
-            _buildInfoRow(Icons.public, 'Egress Public IP', deviceData['egressIp']),
+            _buildInfoRow(Icons.public, 'Egress Public IP', deviceData['egressIp'].toString()),
             const SizedBox(height: 8),
-            _buildInfoRow(Icons.memory, 'MAC Address', deviceData['mac']),
+            _buildInfoRow(Icons.memory, 'MAC Address', deviceData['mac'].toString()),
             const SizedBox(height: 8),
-            _buildInfoRow(Icons.system_update_alt, 'Firmware', deviceData['firmware']),
-
+            _buildInfoRow(Icons.system_update_alt, 'Firmware', deviceData['firmware'].toString()),
             const SizedBox(height: 16),
-
-            // Details Action Button
             SizedBox(
               width: double.infinity,
               child: OutlinedButton.icon(
@@ -347,7 +335,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.group_work, color: Colors.blue),
                 title: const Text('Project Group'),
-                subtitle: Text(deviceData['group']),
+                subtitle: Text(deviceData['group'].toString()),
               ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
