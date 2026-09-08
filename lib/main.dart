@@ -51,31 +51,36 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
     });
 
     try {
-      // Step 1: Fetch Access Token via POST
-      final tokenUrl = Uri.https(baseUrl, '/service/api/oauth20/client/access_token');
+      // Step 1: Fetch Access Token (Ruijie OpenAPI Format)
+      final tokenUrl = Uri.https(
+        baseUrl,
+        '/service/api/oauth20/client/access_token',
+        {'token': 'd63dss0a81e4415a889ac5b78fsc904a'},
+      );
+
       final tokenResponse = await http.post(
         tokenUrl,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'appId': appId,
+          'appid': appId,
           'secret': appSecret,
         }),
       );
 
       if (tokenResponse.statusCode != 200) {
         setState(() {
-          rawResponseText = 'Token HTTP Error Status: ${tokenResponse.statusCode}\nBody:\n${tokenResponse.body}';
+          rawResponseText = 'HTTP Error Status: ${tokenResponse.statusCode}\nBody:\n${tokenResponse.body}';
           isLoading = false;
         });
         return;
       }
 
       final tokenData = json.decode(tokenResponse.body);
-      final accessToken = tokenData['accessToken'] ?? tokenData['access_token'] ?? tokenData['data']?['accessToken'];
+      final accessToken = tokenData['accessToken'] ?? tokenData['access_token'];
 
       if (accessToken == null) {
         setState(() {
-          rawResponseText = 'Token Null in Response Body:\n${tokenResponse.body}';
+          rawResponseText = 'API Response Error:\n${tokenResponse.body}';
           isLoading = false;
         });
         return;
@@ -84,7 +89,7 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
       // Step 2: Fetch Device List
       final deviceUrl = Uri.https(
         baseUrl,
-        '/service/api/open/device/list',
+        '/service/api/maint/devices',
         {'access_token': accessToken},
       );
 
