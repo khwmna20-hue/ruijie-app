@@ -51,7 +51,7 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
     });
 
     try {
-      // Step 1: Fetch Access Token (Ruijie OpenAPI Format)
+      // Step 1: Get Access Token
       final tokenUrl = Uri.https(
         baseUrl,
         '/service/api/oauth20/client/access_token',
@@ -67,36 +67,48 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
         }),
       );
 
-      if (tokenResponse.statusCode != 200) {
-        setState(() {
-          rawResponseText = 'HTTP Error Status: ${tokenResponse.statusCode}\nBody:\n${tokenResponse.body}';
-          isLoading = false;
-        });
-        return;
-      }
-
       final tokenData = json.decode(tokenResponse.body);
-      final accessToken = tokenData['accessToken'] ?? tokenData['access_token'];
+      final String? accessToken = tokenData['accessToken'] ?? tokenData['access_token'];
 
       if (accessToken == null) {
         setState(() {
-          rawResponseText = 'API Response Error:\n${tokenResponse.body}';
+          rawResponseText = 'Token Error:\n${tokenResponse.body}';
           isLoading = false;
         });
         return;
       }
 
-      // Step 2: Fetch Device List
+      // Step 2: Get Group List to retrieve groupId
+      final groupUrl = Uri.https(
+        baseUrl,
+        '/service/api/maint/groups',
+        {'access_token': accessToken},
+      );
+
+      final groupResponse = await http.get(groupUrl);
+      final groupData = json.decode(groupResponse.body);
+
+      String? groupId;
+      if (groupData['data'] != null && (groupData['data'] as List).isNotEmpty) {
+        groupId = groupData['data'][0]['id']?.toString() ?? groupData['data'][0]['groupId']?.toString();
+      }
+
+      // Step 3: Fetch Device List using groupId
+      final Map<String, String> deviceParams = {'access_token': accessToken};
+      if (groupId != null) {
+        deviceParams['groupId'] = groupId;
+      }
+
       final deviceUrl = Uri.https(
         baseUrl,
         '/service/api/maint/devices',
-        {'access_token': accessToken},
+        deviceParams,
       );
 
       final deviceResponse = await http.get(deviceUrl);
       
       setState(() {
-        rawResponseText = '--- TOKEN SUCCESS ---\nToken: $accessToken\n\n--- DEVICE LIST RESPONSE ---\nStatus: ${deviceResponse.statusCode}\nBody:\n${deviceResponse.body}';
+        rawResponseText = '--- SUCCESS! ---\nToken: $accessToken\nGroup ID: $groupId\n\n--- DEVICE LIST RESPONSE ---\n${deviceResponse.body}';
         isLoading = false;
       });
 
@@ -112,7 +124,7 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ruijie Debug View'),
+        title: const Text('Ruijie Device View'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
