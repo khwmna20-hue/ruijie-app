@@ -1,42 +1,42 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 void main() {
-  runApp(const MyApp());
+  runApp(const RuijieApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class RuijieApp extends StatelessWidget {
+  const RuijieApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Ruijie Cloud App',
+      title: 'Ruijie Device Manager',
       theme: ThemeData(
         primarySwatch: Colors.blue,
         useMaterial3: true,
       ),
-      home: const DashBoardScreen(),
+      home: const DeviceListScreen(),
     );
   }
 }
 
-class DashBoardScreen extends StatefulWidget {
-  const DashBoardScreen({super.key});
+class DeviceListScreen extends StatefulWidget {
+  const DeviceListScreen({super.key});
 
   @override
-  State<DashBoardScreen> createState() => _DashBoardScreenState();
+  State<DeviceListScreen> createState() => _DeviceListScreenState();
 }
 
-class _DashBoardScreenState extends State<DashBoardScreen> {
-  final String appId = "openc3be644fb5dc";
-  final String appSecret = "0dea886911864f359497a65f94164518";
+class _DeviceListScreenState extends State<DeviceListScreen> {
+  final String appId = 'openc3be644fb5dc';
+  final String appSecret = '0dea886911864f359497a65f94164518';
+  final String baseUrl = 'cloud-as.ruijienetworks.com';
 
-  List<dynamic> devices = [];
   bool isLoading = false;
-  String statusMessage = "";
+  String rawResponseText = '';
 
   @override
   void initState() {
@@ -47,61 +47,57 @@ class _DashBoardScreenState extends State<DashBoardScreen> {
   Future<void> fetchDevices() async {
     setState(() {
       isLoading = true;
-      statusMessage = "Ruijie Cloud Server သို့ ချိတ်ဆက်နေပါသည်...";
+      rawResponseText = 'Connecting to Ruijie Cloud...';
     });
 
-    // Support မှ ပေးပို့လိုက်သော Token ပါဝင်သည့် Endpoint URL
-    final tokenUrl = "https://cloud-as.ruijienetworks.com/service/api/oauth20/client/access_token?token=d63dss0a81e4415a889ac5b78fsc904a";
-
     try {
-      final response = await http.post(
-        Uri.parse(tokenUrl),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'appid': appId,
-          'secret': appSecret,
-        }),
+      // Step 1: Fetch Access Token
+      final tokenUrl = Uri.https(
+        baseUrl,
+        '/service/api/oauth20/client/access_token',
+        {
+          'app_id': appId,
+          'app_secret': appSecret,
+        },
       );
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['accessToken'] != null && data['accessToken'].toString().isNotEmpty) {
-          final String accessToken = data['accessToken'];
-
-          // Device List တောင်းယူခြင်း
-          final deviceUrl = "https://cloud-as.ruijienetworks.com/service/api/maint/devices?access_token=$accessToken&page_num=1&page_size=100";
-          final devResponse = await http.get(Uri.parse(deviceUrl));
-
-          if (devResponse.statusCode == 200) {
-            final devData = jsonDecode(devResponse.body);
-            setState(() {
-              devices = devData['data'] ?? devData['list'] ?? devData['deviceList'] ?? [];
-              isLoading = false;
-              if (devices.isEmpty) {
-                statusMessage = "Device များ မတွေ့ရှိပါ။ (အကောင့်ထဲတွင် Device မရှိသေးပါ)";
-              }
-            });
-          } else {
-            setState(() {
-              statusMessage = "Device List Error Status: ${devResponse.statusCode}";
-              isLoading = false;
-            });
-          }
-        } else {
-          setState(() {
-            statusMessage = "Ruijie API Error: ${data['msg']} (Code: ${data['code']})";
-            isLoading = false;
-          });
-        }
-      } else {
+      final tokenResponse = await http.get(tokenUrl);
+      if (tokenResponse.statusCode != 200) {
         setState(() {
-          statusMessage = "HTTP Error Status: ${response.statusCode}";
+          rawResponseText = 'Token Error: ${tokenResponse.body}';
           isLoading = false;
         });
+        return;
       }
+
+      final tokenData = json.decode(tokenResponse.body);
+      final accessToken = tokenData['access_token'] ?? tokenData['data']?['access_token'];
+
+      if (accessToken == null) {
+        setState(() {
+          rawResponseText = 'Token null in response: ${tokenResponse.body}';
+          isLoading = false;
+        });
+        return;
+      }
+
+      // Step 2: Fetch Device List
+      final deviceUrl = Uri.https(
+        baseUrl,
+        '/service/api/open/device/list',
+        {'access_token': accessToken},
+      );
+
+      final deviceResponse = await http.get(deviceUrl);
+      
+      setState(() {
+        rawResponseText = 'Status: ${deviceResponse.statusCode}\n\nResponse Body:\n${deviceResponse.body}';
+        isLoading = false;
+      });
+
     } catch (e) {
       setState(() {
-        statusMessage = "Connection Error: $e";
+        rawResponseText = 'Exception Error: $e';
         isLoading = false;
       });
     }
@@ -111,7 +107,7 @@ class _DashBoardScreenState extends State<DashBoardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ruijie Device List'),
+        title: const Text('Ruijie Debug View'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -121,27 +117,15 @@ class _DashBoardScreenState extends State<DashBoardScreen> {
       ),
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
-          : devices.isEmpty
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Text(
-                      statusMessage.isEmpty ? "Device များ မတွေ့ရှိပါ" : statusMessage,
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                )
-              : ListView.builder(
-                  itemCount: devices.length,
-                  itemBuilder: (context, index) {
-                    final device = devices[index];
-                    return ListTile(
-                      leading: const Icon(Icons.router),
-                      title: Text(device['devName'] ?? device['name'] ?? 'Unknown Device'),
-                      subtitle: Text("SN: ${device['sn'] ?? 'N/A'} | Status: ${device['status'] ?? 'N/A'}"),
-                    );
-                  },
+          : Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: SingleChildScrollView(
+                child: SelectableText(
+                  rawResponseText,
+                  style: const TextStyle(fontSize: 14, fontFamily: 'monospace'),
                 ),
+              ),
+            ),
     );
   }
 }
