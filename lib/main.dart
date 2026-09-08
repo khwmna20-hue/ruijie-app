@@ -34,6 +34,7 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
   final String appId = 'openc3be644fb5dc';
   final String appSecret = '0dea886911864f359497a65f94164518';
   final String baseUrl = 'cloud-as.ruijienetworks.com';
+  final String deviceSn = 'H1T0573003149'; // EG105GW-X Device SN
 
   bool isLoading = false;
   String rawResponseText = '';
@@ -78,37 +79,20 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
         return;
       }
 
-      // Step 2: Get Group List to retrieve groupId
-      final groupUrl = Uri.https(
-        baseUrl,
-        '/service/api/maint/groups',
-        {'access_token': accessToken},
-      );
-
-      final groupResponse = await http.get(groupUrl);
-      final groupData = json.decode(groupResponse.body);
-
-      String? groupId;
-      if (groupData['data'] != null && (groupData['data'] as List).isNotEmpty) {
-        groupId = groupData['data'][0]['id']?.toString() ?? groupData['data'][0]['groupId']?.toString();
-      }
-
-      // Step 3: Fetch Device List using groupId
-      final Map<String, String> deviceParams = {'access_token': accessToken};
-      if (groupId != null) {
-        deviceParams['groupId'] = groupId;
-      }
-
+      // Step 2: Fetch Device Info directly using SN
       final deviceUrl = Uri.https(
         baseUrl,
         '/service/api/maint/devices',
-        deviceParams,
+        {
+          'access_token': accessToken,
+          'sn': deviceSn,
+        },
       );
 
       final deviceResponse = await http.get(deviceUrl);
       
       setState(() {
-        rawResponseText = '--- SUCCESS! ---\nToken: $accessToken\nGroup ID: $groupId\n\n--- DEVICE LIST RESPONSE ---\n${deviceResponse.body}';
+        rawResponseText = '--- TOKEN SUCCESS ---\nToken: $accessToken\nSN: $deviceSn\n\n--- DEVICE RESPONSE ---\nStatus: ${deviceResponse.statusCode}\nBody:\n${deviceResponse.body}';
         isLoading = false;
       });
 
