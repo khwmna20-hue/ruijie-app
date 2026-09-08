@@ -1,19 +1,19 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'dart:convert';
 
 void main() {
-  runApp(const RuijieApp());
+  runApp(const MyApp());
 }
 
-class RuijieApp extends StatelessWidget {
-  const RuijieApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Ruijie Reyee Dashboard',
+      title: 'Ruijie Cloud App',
       theme: ThemeData(
         primarySwatch: Colors.blue,
         useMaterial3: true,
@@ -96,27 +96,28 @@ class _DashBoardScreenState extends State<DashBoardScreen> {
     }
 
     try {
-      final deviceUrl = "$workingDomain/service/api/maint/devices?access_token=$accessToken";
+      // &page_num=1&page_size=100 ထည့်သွင်းထားသော URL
+      final deviceUrl = "$workingDomain/service/api/maint/devices?access_token=$accessToken&page_num=1&page_size=100";
       final devResponse = await http.get(Uri.parse(deviceUrl));
 
       if (devResponse.statusCode == 200) {
         final devData = jsonDecode(devResponse.body);
         setState(() {
-          devices = devData['data'] ?? devData['list'] ?? devData['devices'] ?? [];
+          devices = devData['data'] ?? devData['list'] ?? devData['deviceList'] ?? [];
           isLoading = false;
           if (devices.isEmpty) {
-            statusMessage = "Device များ မတွေ့ရှိပါ။ (အကောင့်ထဲတွင် Device ထည့်ထားခြင်း မရှိပါ)";
+            statusMessage = "Device များ မတွေ့ရှိပါ။ (အကောင့်ထဲတွင် Device မရှိသေးပါ)";
           }
         });
       } else {
         setState(() {
-          statusMessage = "Device List Fetch Failed [Code: ${devResponse.statusCode}]";
+          statusMessage = "Device List Error Status: ${devResponse.statusCode}";
           isLoading = false;
         });
       }
     } catch (e) {
       setState(() {
-        statusMessage = "Error: $e";
+        statusMessage = "Fetch Device Error: $e";
         isLoading = false;
       });
     }
@@ -126,7 +127,7 @@ class _DashBoardScreenState extends State<DashBoardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Ruijie Reyee Dashboard"),
+        title: const Text('Ruijie Device List'),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -135,64 +136,27 @@ class _DashBoardScreenState extends State<DashBoardScreen> {
         ],
       ),
       body: isLoading
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const CircularProgressIndicator(),
-                  const SizedBox(height: 16),
-                  Text(statusMessage),
-                ],
-              ),
-            )
-          : devices.isNotEmpty
-              ? ListView.builder(
-                  itemCount: devices.length,
-                  itemBuilder: (context, index) {
-                    final dev = devices[index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      child: ListTile(
-                        leading: Icon(
-                          dev['online'] == true || dev['status'] == 'online'
-                              ? Icons.router
-                              : Icons.router_outlined,
-                          color: dev['online'] == true || dev['status'] == 'online'
-                              ? Colors.green
-                              : Colors.grey,
-                        ),
-                        title: Text(
-                          dev['devName'] ?? dev['deviceName'] ?? dev['sn'] ?? 'Unknown Device',
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        subtitle: Text(
-                          "Model: ${dev['model'] ?? 'N/A'}\nSN: ${dev['sn'] ?? 'N/A'} | IP: ${dev['ip'] ?? 'N/A'}",
-                        ),
-                      ),
-                    );
-                  },
-                )
-              : Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.info_outline, size: 48, color: Colors.blue),
-                        const SizedBox(height: 16),
-                        Text(
-                          statusMessage,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(fontSize: 14),
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: fetchDevices,
-                          child: const Text("ပြန်လည် စမ်းသပ်မည်"),
-                        ),
-                      ],
+          ? const Center(child: CircularProgressIndicator())
+          : devices.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Text(
+                      statusMessage.isEmpty ? "Device များ မတွေ့ရှိပါ" : statusMessage,
+                      textAlign: TextAlign.center,
                     ),
                   ),
+                )
+              : ListView.builder(
+                  itemCount: devices.length,
+                  itemBuilder: (context, index) {
+                    final device = devices[index];
+                    return ListTile(
+                      leading: const Icon(Icons.router),
+                      title: Text(device['devName'] ?? device['name'] ?? 'Unknown Device'),
+                      subtitle: Text("SN: ${device['sn'] ?? 'N/A'} | Status: ${device['status'] ?? 'N/A'}"),
+                    );
+                  },
                 ),
     );
   }
