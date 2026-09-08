@@ -1,4 +1,7 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
 void main() {
   runApp(const MyApp());
@@ -32,35 +35,164 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
-  bool _isLoading = false;
-  String _lastUpdated = 'Just now';
+  // Ruijie Cloud Credentials
+  final String appId = 'openc3be644fb5dc';
+  final String appSecret = '0dea886911864f359497a65f94164518';
 
-  Future<void> _handleRefresh() async {
+  // Device Info
+  String deviceName = 'Wi-Fi Gateway (EG105GW-X)';
+  String status = 'Synced / Online';
+  String serialNumber = 'H1T0573003149';
+  String managementIp = '192.168.1.23';
+  String publicIp = '129.224.203.154';
+  String macAddress = 'E0:50:54:D9:81:31';
+  String firmware = 'ReyeeOS 2.420.0.1910';
+
+  bool _isSaving = false;
+
+  // Ruijie Cloud မှ Access Token ရယူခြင်း
+  Future<String?> _getAccessToken() async {
+    final url = Uri.parse('https://cloud-asia.ruijienetworks.com/api/open/gettoken');
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'appId': appId,
+          'appSecret': appSecret,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['accessToken'];
+      }
+    } catch (e) {
+      debugPrint("Token Error: $e");
+    }
+    return null;
+  }
+
+  // Ruijie Cloud သို့ အချက်အလက်များ တိုက်ရိုက် လှမ်းပြင်ခြင်း
+  Future<void> _updateRuijieCloud({
+    required String newName,
+    required String newIp,
+    required String newPublicIp,
+  }) async {
     setState(() {
-      _isLoading = true;
+      _isSaving = true;
     });
 
-    // Simulate network delay for refresh animation
-    await Future.delayed(const Duration(seconds: 1));
+    final token = await _getAccessToken();
 
-    final now = DateTime.now();
-    final timeStr =
-        "${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}";
+    if (token != null) {
+      final updateUrl = Uri.parse('https://cloud-asia.ruijienetworks.com/api/open/device/update');
+      try {
+        final response = await http.post(
+          updateUrl,
+          headers: {
+            'Content-Type': 'application/json',
+            'accessToken': token,
+          },
+          body: jsonEncode({
+            'sn': serialNumber,
+            'deviceName': newName,
+            'managementIp': newIp,
+            'publicIp': newPublicIp,
+          }),
+        );
+
+        final resData = jsonDecode(response.body);
+
+        if (resData['code'] == 0) {
+          _applyLocalChange(newName, newIp, newPublicIp, 'Ruijie Cloud သို့ တိုက်ရိုက် ပြင်ဆင်ပြီးပါပြီ');
+        } else {
+          _applyLocalChange(newName, newIp, newPublicIp, 'Permission Denied ဖြစ်နေပါသည် (Code: ${resData['code']})');
+        }
+      } catch (e) {
+        _applyLocalChange(newName, newIp, newPublicIp, 'App ထဲတွင် ပြင်ဆင်ပြီးပါပြီ');
+      }
+    } else {
+      _applyLocalChange(newName, newIp, newPublicIp, 'Cloud Token မရရှိသော်လည်း App UI တွင် ပြင်ဆင်ပြီးပါပြီ');
+    }
 
     if (mounted) {
       setState(() {
-        _isLoading = false;
-        _lastUpdated = timeStr;
+        _isSaving = false;
       });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Network status updated at $timeStr'),
-          duration: const Duration(seconds: 2),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
     }
+  }
+
+  void _applyLocalChange(String newName, String newIp, String newPublicIp, String message) {
+    setState(() {
+      deviceName = newName;
+      managementIp = newIp;
+      publicIp = newPublicIp;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _showEditDialog() {
+    final nameController = TextEditingController(text: deviceName);
+    final ipController = TextEditingController(text: managementIp);
+    final publicIpController = TextEditingController(text: publicIp);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Ruijie Setting ပြင်ဆင်ရန်'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                decoration: const InputDecoration(labelText: 'Device Name'),
+              ),
+              TextField(
+                controller: ipController,
+                decoration: const InputDecoration(labelText: 'Management IP'),
+              ),
+              TextField(
+                controller: publicIpController,
+                decoration: const InputDecoration(labelText: 'Egress Public IP'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('မလုပ်တော့ပါ'),
+            ),
+            ElevatedButton(
+              onPressed: _isSaving
+                  ? null
+                  : () async {
+                      Navigator.pop(context);
+                      await _updateRuijieCloud(
+                        newName: nameController.text,
+                        newIp: ipController.text,
+                        newPublicIp: publicIpController.text,
+                      );
+                    },
+              child: _isSaving
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Cloud သို့ သိမ်းမည်'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -68,237 +200,67 @@ class _DashboardPageState extends State<DashboardPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F6F9),
       appBar: AppBar(
-        title: const Column(
-          crossAxisAlignment: CrossAlignment.start,
-          children: [
-            Text(
-              'Myat Noe Aung',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            Text(
-              'Ruijie Cloud Monitor',
-              style: TextStyle(fontSize: 12, color: Colors.white70),
-            ),
-          ],
-        ),
+        title: const Text('Myat Noe Aung - Ruijie Sync'),
         backgroundColor: const Color(0xFF0066CC),
         foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: _isLoading
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2,
-                    ),
-                  )
-                : const Icon(Icons.refresh),
-            tooltip: 'Refresh Network Status',
-            onPressed: _isLoading ? null : _handleRefresh,
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(16.0),
+        children: [
+          Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(18.0),
+              child: Column(
+                crossAxisAlignment: CrossAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          deviceName,
+                          style: const TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.edit, color: Color(0xFF0066CC)),
+                        onPressed: _showEditDialog,
+                      ),
+                    ],
+                  ),
+                  const Divider(),
+                  ListTile(
+                    title: const Text('Management IP'),
+                    subtitle: Text(managementIp),
+                    leading: const Icon(Icons.lan),
+                  ),
+                  ListTile(
+                    title: const Text('Egress Public IP'),
+                    subtitle: Text(publicIp),
+                    leading: const Icon(Icons.public),
+                  ),
+                  ListTile(
+                    title: const Text('Serial Number'),
+                    subtitle: Text(serialNumber),
+                    leading: const Icon(Icons.pin),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _handleRefresh,
-        child: ListView(
-          padding: const EdgeInsets.all(16.0),
-          physics: const AlwaysScrollableScrollPhysics(),
-          children: [
-            // Top Network Summary Card
-            Card(
-              elevation: 0,
-              color: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: Colors.grey.shade200),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            color: Colors.green.shade50,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.check_circle,
-                              color: Colors.green, size: 24),
-                        ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAlignment.start,
-                          children: const [
-                            Text(
-                              'Network Status',
-                              style:
-                                  TextStyle(fontSize: 12, color: Colors.grey),
-                            ),
-                            Text(
-                              'Healthy & Online',
-                              style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black87),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAlignment.end,
-                      children: [
-                        const Text(
-                          'Last Synced',
-                          style: TextStyle(fontSize: 11, color: Colors.grey),
-                        ),
-                        Text(
-                          _lastUpdated,
-                          style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF0066CC)),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Device Detail Card
-            Card(
-              elevation: 2,
-              shadowColor: Colors.black12,
-              color: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(18.0),
-                child: Column(
-                  crossAxisAlignment: CrossAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE6F0FA),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: const Icon(Icons.router,
-                              color: Color(0xFF0066CC), size: 30),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAlignment.start,
-                            children: [
-                              const Text(
-                                'Wi-Fi Gateway',
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey,
-                                    fontWeight: FontWeight.w500),
-                              ),
-                              const SizedBox(height: 2),
-                              const Text(
-                                'EG105GW-X',
-                                style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black87),
-                              ),
-                              const SizedBox(height: 4),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: Colors.green.shade50,
-                                  borderRadius: BorderRadius.circular(6),
-                                  border:
-                                      Border.all(color: Colors.green.shade200),
-                                ),
-                                child: const Text(
-                                  'Synced / Online',
-                                  style: TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.green,
-                                      fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 16.0),
-                      child: Divider(height: 1),
-                    ),
-                    _buildInfoRow(
-                        Icons.pin, 'Serial Number (SN)', 'H1T0573003149'),
-                    _buildInfoRow(
-                        Icons.lan, 'Management IP', '192.168.1.23'),
-                    _buildInfoRow(
-                        Icons.public, 'Egress Public IP', '129.224.203.154'),
-                    _buildInfoRow(
-                        Icons.important_devices, 'MAC Address', 'E0:50:54:D9:81:31'),
-                    _buildInfoRow(Icons.system_update_alt, 'Firmware Version',
-                        'ReyeeOS 2.420.0.1910'),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: _isLoading ? null : _handleRefresh,
+        onPressed: _showEditDialog,
         backgroundColor: const Color(0xFF0066CC),
         foregroundColor: Colors.white,
-        icon: const Icon(Icons.refresh),
-        label: const Text('Refresh'),
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(IconData icon, String title, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
-      child: Row(
-        crossAxisAlignment: CrossAlignment.start,
-        children: [
-          Icon(icon, size: 18, color: Colors.grey.shade600),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(fontSize: 11, color: Colors.grey),
-                ),
-                const SizedBox(height: 2),
-                SelectableText(
-                  value,
-                  style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87),
-                ),
-              ],
-            ),
-          ),
-        ],
+        icon: const Icon(Icons.cloud_upload),
+        label: const Text('Edit & Sync Cloud'),
       ),
     );
   }
