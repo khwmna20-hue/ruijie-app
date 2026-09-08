@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -18,22 +19,22 @@ class RuijieApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         useMaterial3: true,
       ),
-      home: const DashboardScreen(),
+      home: const DashBoardScreen(),
     );
   }
 }
 
-class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+class DashBoardScreen extends StatefulWidget {
+  const DashBoardScreen({super.key});
 
   @override
-  State<DashboardScreen> createState() => _DashboardScreenState();
+  State<DashBoardScreen> createState() => _DashBoardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashBoardScreenState extends State<DashBoardScreen> {
   final String baseUrl = "https://cloud-as.ruijienetworks.com";
-  final String appId = "openc3be644fb5dc";
-  final String appSecret = "0dea886911864f359497a65f94164518";
+  final String appId = "openc1be61fb5dc";
+  final String appSecret = "0dea686511064f359497a65f34164518";
 
   List<dynamic> devices = [];
   bool isLoading = false;
@@ -61,12 +62,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }),
       );
 
+      if (tokenRes.statusCode != 200) {
+        setState(() {
+          errorMessage = "Server တုံ့ပြန်မှု မှားယွင်းနေပါသည် (Status: ${tokenRes.statusCode})။ API Endpoint သို့မဟုတ် Server URL စစ်ဆေးပါ။";
+          isLoading = false;
+        });
+        return;
+      }
+
       final tokenData = jsonDecode(tokenRes.body);
       String token = tokenData['accessToken'] ?? tokenData['data']?['accessToken'] ?? '';
 
       if (token.isEmpty) {
         setState(() {
-          errorMessage = "Token တောင်းယူ၍ မရပါ။ App ID / Key စစ်ဆေးပါ။";
+          errorMessage = "Token တောင်းယူမှု မအောင်မြင်ပါ (App ID / Key စစ်ပေးပါ)";
           isLoading = false;
         });
         return;
@@ -77,9 +86,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
         headers: {'AccessToken': token},
       );
 
+      if (devRes.statusCode != 200) {
+        setState(() {
+          errorMessage = "Device List ရယူ၍ မရပါ (Status: ${devRes.statusCode})";
+          isLoading = false;
+        });
+        return;
+      }
+
       final devData = jsonDecode(devRes.body);
+
       setState(() {
-        devices = devData['data'] ?? [];
+        devices = devData['list'] ?? devData['data'] ?? [];
         isLoading = false;
       });
     } catch (e) {
@@ -94,8 +112,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ruijie Reyee Dashboard'),
-        centerTitle: true,
+        title: const Text("Ruijie Reyee Dashboard"),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -111,27 +128,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     padding: const EdgeInsets.all(16.0),
                     child: Text(
                       errorMessage,
-                      style: const TextStyle(color: Colors.red, fontSize: 16),
                       textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.red, fontSize: 16),
                     ),
                   ),
                 )
               : devices.isEmpty
-                  ? const Center(child: Text('Device များ ရှာမတွေ့ပါ။'))
+                  ? const Center(child: Text("Device များ မရှိသေးပါ"))
                   : ListView.builder(
                       itemCount: devices.length,
                       itemBuilder: (context, index) {
                         final dev = devices[index];
-                        return Card(
-                          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          child: ListTile(
-                            leading: Icon(
-                              Icons.router,
-                              color: dev['status'] == 'online' ? Colors.green : Colors.grey,
-                            ),
-                            title: Text(dev['sn'] ?? 'SN မရှိပါ'),
-                            subtitle: Text('Model: ${dev['model'] ?? 'N/A'} | Status: ${dev['status'] ?? 'N/A'}'),
-                          ),
+                        return ListTile(
+                          leading: const Icon(Icons.router),
+                          title: Text(dev['devName'] ?? dev['sn'] ?? 'Unknown Device'),
+                          subtitle: Text(dev['model'] ?? dev['ip'] ?? ''),
                         );
                       },
                     ),
