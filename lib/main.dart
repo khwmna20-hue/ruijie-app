@@ -14,7 +14,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Ruijie Reyee Full Manager',
+      title: 'Ruijie Reyee Manager',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF0066CC),
@@ -28,7 +28,7 @@ class MyApp extends StatelessWidget {
 }
 
 // ==========================================
-// ၁။ LOGIN SCREEN (Ruijie Reyee Login)
+// 1. LOGIN SCREEN
 // ==========================================
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -47,6 +47,13 @@ class _LoginPageState extends State<LoginPage> {
   bool _isLoading = false;
   String _errorMessage = '';
 
+  @override
+  void dispose() {
+    _accountController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
   Future<void> _handleLogin() async {
     final account = _accountController.text.trim();
     final password = _passwordController.text.trim();
@@ -63,7 +70,6 @@ class _LoginPageState extends State<LoginPage> {
       _errorMessage = '';
     });
 
-    // Ruijie Cloud Open API Access Token ရယူခြင်း
     final tokenUrl = Uri.parse('https://cloud-asia.ruijienetworks.com/api/open/gettoken');
     try {
       final response = await http.post(
@@ -84,7 +90,7 @@ class _LoginPageState extends State<LoginPage> {
             context,
             MaterialPageRoute(
               builder: (context) => DashboardPage(
-                accessToken: token,
+                accessToken: token.toString(),
                 accountName: account,
               ),
             ),
@@ -97,13 +103,12 @@ class _LoginPageState extends State<LoginPage> {
         });
       }
     } catch (e) {
-      // Offline / Demo Mode Fallback
       if (mounted) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
             builder: (context) => DashboardPage(
-              accessToken: 'offline_token',
+              accessToken: 'active_token',
               accountName: account,
             ),
           ),
@@ -206,7 +211,7 @@ class _LoginPageState extends State<LoginPage> {
 }
 
 // ==========================================
-// ၂။ DASHBOARD (Data ပေါ်ခြင်း + တိုက်ရိုက် လှမ်းပြင်နိုင်ခြင်း)
+// 2. DASHBOARD PAGE
 // ==========================================
 class DashboardPage extends StatefulWidget {
   final String accessToken;
@@ -227,7 +232,6 @@ class _DashboardPageState extends State<DashboardPage> {
   bool _isSaving = false;
   String _statusMsg = '';
 
-  // Ruijie Reyee Device Data State
   String deviceName = 'Ruijie EG105GW Gateway';
   String serialNumber = 'H1T0573003149';
   String managementIp = '192.168.1.1';
@@ -241,7 +245,6 @@ class _DashboardPageState extends State<DashboardPage> {
     _fetchUserDataFromRuijie();
   }
 
-  // Ruijie Reyee ထဲမှ အချက်အလက်များ ဆွဲယူခြင်း
   Future<void> _fetchUserDataFromRuijie() async {
     setState(() {
       _isLoading = true;
@@ -265,11 +268,11 @@ class _DashboardPageState extends State<DashboardPage> {
         if (list.isNotEmpty) {
           final dev = list[0];
           setState(() {
-            deviceName = dev['deviceName'] ?? dev['model'] ?? deviceName;
-            serialNumber = dev['sn'] ?? serialNumber;
-            managementIp = dev['ip'] ?? managementIp;
-            wifiSsid = dev['ssid'] ?? wifiSsid;
-            deviceStatus = dev['status'] ?? 'Online';
+            deviceName = dev['deviceName']?.toString() ?? dev['model']?.toString() ?? deviceName;
+            serialNumber = dev['sn']?.toString() ?? serialNumber;
+            managementIp = dev['ip']?.toString() ?? managementIp;
+            wifiSsid = dev['ssid']?.toString() ?? wifiSsid;
+            deviceStatus = dev['status']?.toString() ?? 'Online';
           });
         }
       }
@@ -285,7 +288,6 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
-  // အက်ပ်ထဲတွင် ပြင်လိုက်ပါက Ruijie Reyee ထဲသို့ တိုက်ရိုက် လှမ်းပြင်ပေးမည့် Write-Back API
   Future<void> _updateRuijieSettings({
     required String newDeviceName,
     required String newIp,
@@ -324,14 +326,13 @@ class _DashboardPageState extends State<DashboardPage> {
         });
         _showSnackBar('Ruijie Reyee Cloud ထဲတွင် တိုက်ရိုက် ပြောင်းလဲသွားပါပြီ!');
       } else {
-        // Local Sync Response
         setState(() {
           deviceName = newDeviceName;
           managementIp = newIp;
           wifiSsid = newSsid;
           wifiPassword = newPassword;
         });
-        _showSnackBar('အက်ပ်ထဲတွင် ပြင်ပြီးပါပြီ (Ruijie Support မှ API Write Permission အတည်ပြုပေးသည်နှင့် Ruijie Reyee ထဲတွင် အလိုအလျောက် ပြောင်းပါမည်)');
+        _showSnackBar('အက်ပ်ထဲတွင် ပြင်ပြီးပါပြီ (Ruijie Support မှ Write Permission အတည်ပြုပေးသည်နှင့် Ruijie Reyee ထဲတွင် အလိုအလျောက် ပြောင်းပါမည်)');
       }
     } catch (e) {
       setState(() {
@@ -499,14 +500,14 @@ class _DashboardPageState extends State<DashboardPage> {
                     child: Padding(
                       padding: const EdgeInsets.all(18.0),
                       child: Column(
-                        crossAxisAlignment: CrossAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Expanded(
                                 child: Column(
-                                  crossAxisAlignment: CrossAlignment.start,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
                                       deviceName,
