@@ -43,7 +43,7 @@ class DashboardPage extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
-                  crossAxisAlignment: CrossAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: const [
                     Row(
                       children: [
@@ -51,7 +51,7 @@ class DashboardPage extends StatelessWidget {
                         SizedBox(width: 12),
                         Expanded(
                           child: Column(
-                            crossAxisAlignment: CrossAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 'Wi-Fi Gateway (EG105GW-X)',
