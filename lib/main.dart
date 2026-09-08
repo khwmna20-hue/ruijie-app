@@ -51,31 +51,31 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
     });
 
     try {
-      // Step 1: Fetch Access Token
-      final tokenUrl = Uri.https(
-        baseUrl,
-        '/service/api/oauth20/client/access_token',
-        {
-          'app_id': appId,
-          'app_secret': appSecret,
-        },
+      // Step 1: Fetch Access Token via POST
+      final tokenUrl = Uri.https(baseUrl, '/service/api/oauth20/client/access_token');
+      final tokenResponse = await http.post(
+        tokenUrl,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'appId': appId,
+          'secret': appSecret,
+        }),
       );
 
-      final tokenResponse = await http.get(tokenUrl);
       if (tokenResponse.statusCode != 200) {
         setState(() {
-          rawResponseText = 'Token Error: ${tokenResponse.body}';
+          rawResponseText = 'Token HTTP Error Status: ${tokenResponse.statusCode}\nBody:\n${tokenResponse.body}';
           isLoading = false;
         });
         return;
       }
 
       final tokenData = json.decode(tokenResponse.body);
-      final accessToken = tokenData['access_token'] ?? tokenData['data']?['access_token'];
+      final accessToken = tokenData['accessToken'] ?? tokenData['access_token'] ?? tokenData['data']?['accessToken'];
 
       if (accessToken == null) {
         setState(() {
-          rawResponseText = 'Token null in response: ${tokenResponse.body}';
+          rawResponseText = 'Token Null in Response Body:\n${tokenResponse.body}';
           isLoading = false;
         });
         return;
@@ -91,7 +91,7 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
       final deviceResponse = await http.get(deviceUrl);
       
       setState(() {
-        rawResponseText = 'Status: ${deviceResponse.statusCode}\n\nResponse Body:\n${deviceResponse.body}';
+        rawResponseText = '--- TOKEN SUCCESS ---\nToken: $accessToken\n\n--- DEVICE LIST RESPONSE ---\nStatus: ${deviceResponse.statusCode}\nBody:\n${deviceResponse.body}';
         isLoading = false;
       });
 
@@ -122,7 +122,7 @@ class _DeviceListScreenState extends State<DeviceListScreen> {
               child: SingleChildScrollView(
                 child: SelectableText(
                   rawResponseText,
-                  style: const TextStyle(fontSize: 14, fontFamily: 'monospace'),
+                  style: const TextStyle(fontSize: 13, fontFamily: 'monospace'),
                 ),
               ),
             ),
