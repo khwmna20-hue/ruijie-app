@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -53,8 +52,9 @@ class _DashBoardScreenState extends State<DashBoardScreen> {
     });
 
     try {
+      // Open API Correct Path: /open/v1/auth/token
       final tokenRes = await http.post(
-        Uri.parse('$baseUrl/api/v1/auth/token'),
+        Uri.parse('$baseUrl/open/v1/auth/token'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'appId': appId,
@@ -82,7 +82,7 @@ class _DashBoardScreenState extends State<DashBoardScreen> {
       }
 
       final devRes = await http.get(
-        Uri.parse('$baseUrl/api/v1/device/list'),
+        Uri.parse('$baseUrl/open/v1/device/list'),
         headers: {'AccessToken': token},
       );
 
