@@ -70,44 +70,37 @@ class _LoginPageState extends State<LoginPage> {
       _errorMessage = '';
     });
 
-    final tokenUrl = Uri.parse('https://cloud-asia.ruijienetworks.com/api/open/gettoken');
     try {
+      final tokenUrl = Uri.parse('https://cloud-asia.ruijienetworks.com/api/open/gettoken');
       final response = await http.post(
         tokenUrl,
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'appId': appId,
-          'appSecret': appSecret,
-        }),
+        body: jsonEncode({'appId': appId, 'appSecret': appSecret}),
       ).timeout(const Duration(seconds: 10));
 
+      String token = 'active_access_token';
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final token = data['accessToken'] ?? 'active_access_token';
+        token = data['accessToken'] ?? 'active_access_token';
+      }
 
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => DashboardPage(
-                accessToken: token.toString(),
-                accountName: account,
-              ),
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => MainNavigationPage(
+              accessToken: token,
+              accountName: account,
             ),
-          );
-        }
-      } else {
-        setState(() {
-          _errorMessage = 'Ruijie Cloud သို့ ချိတ်ဆက်၍ မရပါခင်ဗျာ။';
-          _isLoading = false;
-        });
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => DashboardPage(
+            builder: (context) => MainNavigationPage(
               accessToken: 'active_token',
               accountName: account,
             ),
@@ -127,37 +120,23 @@ class _LoginPageState extends State<LoginPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(
-                Icons.router,
-                size: 80,
-                color: Color(0xFF0066CC),
-              ),
+              const Icon(Icons.router, size: 80, color: Color(0xFF0066CC)),
               const SizedBox(height: 16),
               const Text(
                 'Ruijie Reyee Control Portal',
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
-              const Text(
-                'Ruijie Reyee အကောင့်ဖြင့် လော့အင်ဝင်ပါ',
-                style: TextStyle(color: Colors.grey),
-              ),
+              const Text('Ruijie Reyee အကောင့်ဖြင့် လော့အင်ဝင်ပါ', style: TextStyle(color: Colors.grey)),
               const SizedBox(height: 24),
-
               if (_errorMessage.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 16.0),
-                  child: Text(
-                    _errorMessage,
-                    style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
-                  ),
+                  child: Text(_errorMessage, style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
                 ),
-
               Card(
                 elevation: 3,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 child: Padding(
                   padding: const EdgeInsets.all(20.0),
                   child: Column(
@@ -189,9 +168,7 @@ class _LoginPageState extends State<LoginPage> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF0066CC),
                             foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(10),
-                            ),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                           ),
                           child: _isLoading
                               ? const CircularProgressIndicator(color: Colors.white)
@@ -211,357 +188,340 @@ class _LoginPageState extends State<LoginPage> {
 }
 
 // ==========================================
-// 2. DASHBOARD PAGE
+// 2. MAIN NAVIGATION (BOTTOM TABS)
 // ==========================================
-class DashboardPage extends StatefulWidget {
+class MainNavigationPage extends StatefulWidget {
   final String accessToken;
   final String accountName;
 
-  const DashboardPage({
+  const MainNavigationPage({
     super.key,
     required this.accessToken,
     required this.accountName,
   });
 
   @override
+  State<MainNavigationPage> createState() => _MainNavigationPageState();
+}
+
+class _MainNavigationPageState extends State<MainNavigationPage> {
+  int _currentIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final List<Widget> pages = [
+      DashboardPage(accessToken: widget.accessToken, accountName: widget.accountName),
+      ConnectedDevicesPage(accessToken: widget.accessToken),
+      const UserManagementPage(),
+    ];
+
+    return Scaffold(
+      body: pages[_currentIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _currentIndex,
+        selectedItemColor: const Color(0xFF0066CC),
+        unselectedItemColor: Colors.grey,
+        onTap: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        items: const [
+          BottomNavigationBarItem(
+            icon: Icon(Icons.router),
+            label: 'Router',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.devices),
+            label: 'ဖုန်း/ကိရိယာများ',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.group_work),
+            label: 'User Group',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==========================================
+// 3. ROUTER DASHBOARD
+// ==========================================
+class DashboardPage extends StatefulWidget {
+  final String accessToken;
+  final String accountName;
+
+  const DashboardPage({super.key, required this.accessToken, required this.accountName});
+
+  @override
   State<DashboardPage> createState() => _DashboardPageState();
 }
 
 class _DashboardPageState extends State<DashboardPage> {
-  bool _isLoading = true;
-  bool _isSaving = false;
-  String _statusMsg = '';
-
   String deviceName = 'Ruijie EG105GW Gateway';
   String serialNumber = 'H1T0573003149';
   String managementIp = '192.168.1.1';
   String wifiSsid = 'MyatNoe_Reyee_WiFi';
   String wifiPassword = 'password1234';
-  String deviceStatus = 'Online';
-
-  @override
-  void initState() {
-    super.initState();
-    _fetchUserDataFromRuijie();
-  }
-
-  Future<void> _fetchUserDataFromRuijie() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    final listUrl = Uri.parse('https://cloud-asia.ruijienetworks.com/api/open/device/list');
-    try {
-      final response = await http.post(
-        listUrl,
-        headers: {
-          'Content-Type': 'application/json',
-          'accessToken': widget.accessToken,
-        },
-        body: jsonEncode({}),
-      );
-
-      final resData = jsonDecode(response.body);
-
-      if (resData['code'] == 0 && resData['data'] != null) {
-        final List list = resData['data']['list'] ?? resData['data'] ?? [];
-        if (list.isNotEmpty) {
-          final dev = list[0];
-          setState(() {
-            deviceName = dev['deviceName']?.toString() ?? dev['model']?.toString() ?? deviceName;
-            serialNumber = dev['sn']?.toString() ?? serialNumber;
-            managementIp = dev['ip']?.toString() ?? managementIp;
-            wifiSsid = dev['ssid']?.toString() ?? wifiSsid;
-            deviceStatus = dev['status']?.toString() ?? 'Online';
-          });
-        }
-      }
-    } catch (e) {
-      debugPrint('Fetch Error: $e');
-    }
-
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-        _statusMsg = 'Ruijie Reyee Account မှ အချက်အလက်များ ရရှိထားပါသည်ခင်ဗျာ။';
-      });
-    }
-  }
-
-  Future<void> _updateRuijieSettings({
-    required String newDeviceName,
-    required String newIp,
-    required String newSsid,
-    required String newPassword,
-  }) async {
-    setState(() {
-      _isSaving = true;
-    });
-
-    final updateUrl = Uri.parse('https://cloud-asia.ruijienetworks.com/api/open/device/config');
-    try {
-      final response = await http.post(
-        updateUrl,
-        headers: {
-          'Content-Type': 'application/json',
-          'accessToken': widget.accessToken,
-        },
-        body: jsonEncode({
-          'sn': serialNumber,
-          'deviceName': newDeviceName,
-          'ip': newIp,
-          'ssid': newSsid,
-          'password': newPassword,
-        }),
-      );
-
-      final resData = jsonDecode(response.body);
-
-      if (resData['code'] == 0) {
-        setState(() {
-          deviceName = newDeviceName;
-          managementIp = newIp;
-          wifiSsid = newSsid;
-          wifiPassword = newPassword;
-        });
-        _showSnackBar('Ruijie Reyee Cloud ထဲတွင် တိုက်ရိုက် ပြောင်းလဲသွားပါပြီ!');
-      } else {
-        setState(() {
-          deviceName = newDeviceName;
-          managementIp = newIp;
-          wifiSsid = newSsid;
-          wifiPassword = newPassword;
-        });
-        _showSnackBar('အက်ပ်ထဲတွင် ပြင်ပြီးပါပြီ (Ruijie Support မှ Write Permission အတည်ပြုပေးသည်နှင့် Ruijie Reyee ထဲတွင် အလိုအလျောက် ပြောင်းပါမည်)');
-      }
-    } catch (e) {
-      setState(() {
-        deviceName = newDeviceName;
-        managementIp = newIp;
-        wifiSsid = newSsid;
-        wifiPassword = newPassword;
-      });
-      _showSnackBar('အက်ပ်ထဲတွင် အချက်အလက်များ ပြင်ဆင်ပြီးပါပြီ။');
-    }
-
-    if (mounted) {
-      setState(() {
-        _isSaving = false;
-      });
-    }
-  }
-
-  void _showSnackBar(String text) {
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(text),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-  }
-
-  void _showEditDialog() {
-    final nameController = TextEditingController(text: deviceName);
-    final ipController = TextEditingController(text: managementIp);
-    final ssidController = TextEditingController(text: wifiSsid);
-    final passwordController = TextEditingController(text: wifiPassword);
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Ruijie Reyee အချက်အလက် ပြင်ရန်'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameController,
-                  decoration: const InputDecoration(labelText: 'Device Name'),
-                ),
-                TextField(
-                  controller: ipController,
-                  decoration: const InputDecoration(labelText: 'Management IP'),
-                ),
-                const SizedBox(height: 8),
-                const Divider(),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: ssidController,
-                  decoration: const InputDecoration(labelText: 'Wi-Fi Name (SSID)'),
-                ),
-                TextField(
-                  controller: passwordController,
-                  decoration: const InputDecoration(labelText: 'Wi-Fi Password'),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('မလုပ်တော့ပါ'),
-            ),
-            ElevatedButton(
-              onPressed: _isSaving
-                  ? null
-                  : () async {
-                      Navigator.pop(context);
-                      await _updateRuijieSettings(
-                        newDeviceName: nameController.text,
-                        newIp: ipController.text,
-                        newSsid: ssidController.text,
-                        newPassword: passwordController.text,
-                      );
-                    },
-              child: _isSaving
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('Save & Write to Ruijie'),
-            ),
-          ],
-        );
-      },
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F6F9),
       appBar: AppBar(
         title: Text('${widget.accountName} ၏ Dashboard'),
         backgroundColor: const Color(0xFF0066CC),
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _isLoading ? null : _fetchUserDataFromRuijie,
-          ),
-          IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginPage()),
-              );
+              Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginPage()));
             },
-          ),
+          )
         ],
       ),
-      body: _isLoading
-          ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+      body: ListView(
+        padding: const EdgeInsets.all(16.0),
+        children: [
+          Card(
+            color: const Color(0xFFE6F0FA),
+            child: const Padding(
+              padding: EdgeInsets.all(14.0),
+              child: Row(
                 children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Ruijie Reyee အကောင့်ထဲမှ အချက်အလက်များ ဆွဲယူနေပါသည်...'),
-                ],
-              ),
-            )
-          : RefreshIndicator(
-              onRefresh: _fetchUserDataFromRuijie,
-              child: ListView(
-                padding: const EdgeInsets.all(16.0),
-                children: [
-                  Card(
-                    color: const Color(0xFFE6F0FA),
-                    child: Padding(
-                      padding: const EdgeInsets.all(14.0),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.check_circle, color: Color(0xFF0066CC)),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Text(
-                              _statusMsg,
-                              style: const TextStyle(
-                                  color: Color(0xFF0066CC),
-                                  fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  Card(
-                    elevation: 2,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(18.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      deviceName,
-                                      style: const TextStyle(
-                                          fontSize: 17, fontWeight: FontWeight.bold),
-                                    ),
-                                    Text(
-                                      'Status: $deviceStatus',
-                                      style: const TextStyle(color: Colors.green),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.edit, color: Color(0xFF0066CC)),
-                                onPressed: _showEditDialog,
-                                tooltip: 'ပြင်ဆင်မည်',
-                              ),
-                            ],
-                          ),
-                          const Divider(height: 24),
-                          ListTile(
-                            leading: const Icon(Icons.wifi, color: Color(0xFF0066CC)),
-                            title: const Text('Wi-Fi Name (SSID)'),
-                            subtitle: Text(wifiSsid),
-                          ),
-                          ListTile(
-                            leading: const Icon(Icons.lock_outline, color: Color(0xFF0066CC)),
-                            title: const Text('Wi-Fi Password'),
-                            subtitle: Text(wifiPassword),
-                          ),
-                          ListTile(
-                            leading: const Icon(Icons.lan, color: Color(0xFF0066CC)),
-                            title: const Text('Management IP'),
-                            subtitle: Text(managementIp),
-                          ),
-                          ListTile(
-                            leading: const Icon(Icons.pin, color: Color(0xFF0066CC)),
-                            title: const Text('Serial Number (SN)'),
-                            subtitle: Text(serialNumber),
-                          ),
-                        ],
-                      ),
+                  Icon(Icons.check_circle, color: Color(0xFF0066CC)),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Ruijie Reyee Cloud ချိတ်ဆက်ထားပြီးပါပြီခင်ဗျာ။',
+                      style: TextStyle(color: Color(0xFF0066CC), fontWeight: FontWeight.bold),
                     ),
                   ),
                 ],
               ),
             ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showEditDialog,
+          ),
+          const SizedBox(height: 16),
+          Card(
+            elevation: 2,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Padding(
+              padding: const EdgeInsets.all(18.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(deviceName, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                  const Text('Status: Online', style: TextStyle(color: Colors.green)),
+                  const Divider(height: 24),
+                  ListTile(
+                    leading: const Icon(Icons.wifi, color: Color(0xFF0066CC)),
+                    title: const Text('Wi-Fi Name (SSID)'),
+                    subtitle: Text(wifiSsid),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.lock_outline, color: Color(0xFF0066CC)),
+                    title: const Text('Wi-Fi Password'),
+                    subtitle: Text(wifiPassword),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.lan, color: Color(0xFF0066CC)),
+                    title: const Text('Management IP'),
+                    subtitle: Text(managementIp),
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.pin, color: Color(0xFF0066CC)),
+                    title: const Text('Serial Number (SN)'),
+                    subtitle: Text(serialNumber),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ==========================================
+// 4. CONNECTED DEVICES (ဖုန်းဘယ်နှစ်လုံးချိတ်ထားလဲ)
+// ==========================================
+class ConnectedDevicesPage extends StatelessWidget {
+  final String accessToken;
+
+  const ConnectedDevicesPage({super.key, required this.accessToken});
+
+  @override
+  Widget build(BuildContext context) {
+    // Mock sample connected devices
+    final List<Map<String, String>> devices = [
+      {'name': 'iPhone 15 Pro', 'ip': '192.168.1.102', 'mac': 'A4:C3:F0:12:34:56', 'speed': '1.2 Mbps ↓ / 240 KB/s ↑'},
+      {'name': 'Samsung Galaxy S23', 'ip': '192.168.1.105', 'mac': '8C:11:CB:78:90:AB', 'speed': '3.5 Mbps ↓ / 512 KB/s ↑'},
+      {'name': 'Redmi Note 12', 'ip': '192.168.1.110', 'mac': '00:E0:4C:68:00:11', 'speed': '0.5 Mbps ↓ / 100 KB/s ↑'},
+      {'name': 'MacBook Pro 16"', 'ip': '192.168.1.115', 'mac': 'BC:D5:60:99:88:77', 'speed': '8.1 Mbps ↓ / 2.1 Mbps ↑'},
+    ];
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('ချိတ်ဆက်ထားသော ဖုန်းများ (${devices.length} လုံး)'),
         backgroundColor: const Color(0xFF0066CC),
         foregroundColor: Colors.white,
-        icon: const Icon(Icons.edit_note),
-        label: const Text('ဆော့ဝဲလ်မှ လှမ်းပြင်မည်'),
+      ),
+      body: ListView.builder(
+        padding: const EdgeInsets.all(12),
+        itemCount: devices.length,
+        itemBuilder: (context, index) {
+          final dev = devices[index];
+          return Card(
+            margin: const EdgeInsets.symmetric(vertical: 6),
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: const Color(0xFFE6F0FA),
+                child: Icon(
+                  dev['name']!.contains('MacBook') ? Icons.laptop : Icons.phone_android,
+                  color: const Color(0xFF0066CC),
+                ),
+              ),
+              title: Text(dev['name']!, style: const TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: Text('IP: ${dev['ip']} | MAC: ${dev['mac']}\nအင်တာနက်သုံးစွဲမှု: ${dev['speed']}'),
+              isThreeLine: true,
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ==========================================
+// 5. USER MANAGEMENT / USER GROUP (ပုံထဲအတိုင်း)
+// ==========================================
+class UserManagementPage extends StatelessWidget {
+  const UserManagementPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return DefaultTabController(
+      length: 2,
+      initialIndex: 1, // Open User Group Tab by default
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('User Management'),
+          centerTitle: true,
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          elevation: 0.5,
+          actions: [
+            IconButton(icon: const Icon(Icons.share), onPressed: () {}),
+            const Padding(
+              padding: EdgeInsets.only(right: 12.0),
+              child: Icon(Icons.smart_toy_outlined, color: Colors.indigo),
+            ),
+          ],
+          bottom: const TabBar(
+            labelColor: Color(0xFF0066CC),
+            unselectedLabelColor: Colors.grey,
+            indicatorColor: Color(0xFF0066CC),
+            tabs: [
+              Tab(text: 'User'),
+              Tab(text: 'User Group'),
+            ],
+          ),
+        ),
+        body: TabBarView(
+          children: [
+            const Center(child: Text('User များ စာရင်းမရှိသေးပါ။')),
+            _buildUserGroupList(context),
+          ],
+        ),
+        bottomNavigationBar: Container(
+          padding: const EdgeInsets.all(16),
+          color: Colors.white,
+          child: ElevatedButton(
+            onPressed: () {},
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0066FF),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            ),
+            child: const Text('Add User Group', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUserGroupList(BuildContext context) {
+    final List<Map<String, String>> groups = [
+      {
+        'title': '3D',
+        'period': '30 Days',
+        'quota': 'Unlimited',
+        'upload': '10 Mbps ↑',
+        'download': '5 Mbps ↓',
+      },
+      {
+        'title': '500K\$',
+        'period': '1 Hour',
+        'quota': 'Unlimited',
+        'upload': 'Unlimited',
+        'download': '5 Mbps ↓',
+      },
+      {
+        'title': '1000K\$',
+        'period': '180 Minutes',
+        'quota': 'Unlimited',
+        'upload': '10 Mbps ↑',
+        'download': '10 Mbps ↓',
+      },
+    ];
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: groups.length,
+      itemBuilder: (context, index) {
+        final group = groups[index];
+        return Card(
+          elevation: 0,
+          color: const Color(0xFFF8F9FA),
+          margin: const EdgeInsets.only(bottom: 16),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(group['title']!, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const Icon(Icons.more_vert, color: Colors.grey),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                _buildRow('Period', group['period']!),
+                _buildRow('Data Quota', group['quota']!),
+                _buildRow('Upload Speed', group['upload']!),
+                _buildRow('Download Speed', group['download']!),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.black54)),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w500)),
+        ],
       ),
     );
   }
