@@ -31,9 +31,8 @@ class DashBoardScreen extends StatefulWidget {
 }
 
 class _DashBoardScreenState extends State<DashBoardScreen> {
-  final String baseUrl = "https://cloud-as.ruijienetworks.com";
   final String appId = "openc3be644fb5dc";
-  final String appSecret = "0dea886911864f359497a65f94164518";
+  final String appSecret = "0dea686511064f359497a65f34164518";
 
   List<dynamic> devices = [];
   bool isLoading = false;
@@ -48,60 +47,74 @@ class _DashBoardScreenState extends State<DashBoardScreen> {
   Future<void> fetchDevices() async {
     setState(() {
       isLoading = true;
-      debugLog = "=== Ruijie API Auto Diagnostic ===\n\n";
+      debugLog = "=== Full Multi-Server Diagnostic ===\n\n";
     });
 
-    // Ruijie Cloud ၏ ဖြစ်နိုင်ခြေရှိသော Auth URL လမ်းကြောင်းများ အားလုံး စစ်ဆေးခြင်း
-    final List<String> authEndpoints = [
-      "/service/api/v1/auth/token",
-      "/api/v1/auth/token",
-      "/open/v1/auth/token",
-      "/api/open/v1/auth/token",
+    // Ruijie Cloud Server Domains
+    final List<String> baseUrls = [
+      "https://cloud-as.ruijienetworks.com",
+      "https://cloud.ruijienetworks.com",
+      "https://cloud-eu.ruijienetworks.com",
     ];
 
+    // API Path Variations
+    final List<String> authEndpoints = [
+      "/service/api/v1/auth/token",
+      "/service/api/v1/token",
+      "/open/api/v1/auth/token",
+      "/api/v1/auth/token",
+      "/open/v1/auth/token",
+      "/service/api/v2/auth/token",
+    ];
+
+    String workingBaseUrl = "";
     String workingAuthPath = "";
     String token = "";
 
-    for (String path in authEndpoints) {
-      final url = "$baseUrl$path";
-      try {
-        final res = await http.post(
-          Uri.parse(url),
-          headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({'appId': appId, 'appSecret': appSecret}),
-        );
+    for (String domain in baseUrls) {
+      for (String path in authEndpoints) {
+        final url = "$domain$path";
+        try {
+          final res = await http.post(
+            Uri.parse(url),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'appId': appId, 'appSecret': appSecret}),
+          );
 
-        if (res.statusCode == 200) {
-          final data = jsonDecode(res.body);
-          token = data['accessToken'] ?? data['data']?['accessToken'] ?? '';
-          if (token.isNotEmpty) {
-            workingAuthPath = path;
-            debugLog += "SUCCESS: Auth Path မာန်ပါသည် -> $path\n";
-            break;
+          if (res.statusCode == 200) {
+            final data = jsonDecode(res.body);
+            token = data['accessToken'] ?? data['data']?['accessToken'] ?? '';
+            if (token.isNotEmpty) {
+              workingBaseUrl = domain;
+              workingAuthPath = path;
+              debugLog += "SUCCESS: Found -> $domain$path\n";
+              break;
+            } else {
+              debugLog += "200 OK (No Token): $url\n";
+            }
           } else {
-            debugLog += "FAIL: $path (Token မရပါ - ${res.body})\n";
+            debugLog += "FAIL [Status ${res.statusCode}]: $domain$path\n";
           }
-        } else {
-          debugLog += "FAIL: $path [Status Code: ${res.statusCode}]\n";
+        } catch (e) {
+          debugLog += "ERR: $domain$path\n";
         }
-      } catch (e) {
-        debugLog += "ERROR: $path [$e]\n";
       }
+      if (token.isNotEmpty) break;
     }
 
     if (token.isEmpty) {
       setState(() {
-        debugLog += "\n⚠️ URL လမ်းကြောင်းများ အားလုံး 404 ဖြစ်နေပါသည်။ အထက်ပါ Log ကို ကြည့်၍ စစ်ဆေးနိုင်ပါသည်။";
+        debugLog += "\n⚠️ Server အားလုံးနှင့် API Path များ စစ်ဆေးခဲ့ပြီး မှန်ကန်သော Endpoint ရှာမတွေ့ပါ။";
         isLoading = false;
       });
       return;
     }
 
-    // Token ရပါက Device List လှမ်းတောင်းခြင်း
-    final String devPath = workingAuthPath.replaceAll("/auth/token", "/device/list");
+    // Token ရပါက Device List ခေါ်ယူခြင်း
+    final String devPath = workingAuthPath.replaceAll("auth/token", "device/list").replaceAll("token", "device/list");
     try {
       final devRes = await http.get(
-        Uri.parse("$baseUrl$devPath"),
+        Uri.parse("$workingBaseUrl$devPath"),
         headers: {'AccessToken': token},
       );
 
@@ -113,7 +126,7 @@ class _DashBoardScreenState extends State<DashBoardScreen> {
         });
       } else {
         setState(() {
-          debugLog += "\nDevice List Error [Status: ${devRes.statusCode}] - ${devRes.body}";
+          debugLog += "\nDevice List Status: ${devRes.statusCode} - ${devRes.body}";
           isLoading = false;
         });
       }
@@ -159,7 +172,7 @@ class _DashBoardScreenState extends State<DashBoardScreen> {
                       style: TextStyle(
                         fontFamily: 'monospace',
                         color: debugLog.contains("SUCCESS") ? Colors.green : Colors.red,
-                        fontSize: 13,
+                        fontSize: 12,
                       ),
                     ),
                   ),
